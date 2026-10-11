@@ -17,12 +17,19 @@ It is meant for networks that have no DHCP server of their own: a lab bench, a s
 - Leases are remembered across restarts
 - No admin password needed
 
-## Requirements
+## Download
 
-- macOS 13 or later
-- Xcode Command Line Tools to build (`xcode-select --install`)
+Requires macOS 13 or later, on Apple silicon or Intel.
 
-## Build
+1. Download `DHCP-Server.dmg` from the [latest release](https://github.com/sainisandeep/mac-dhcp-server/releases/latest).
+2. Open it and drag **DHCP Server** to **Applications**.
+3. Open the app. macOS will refuse the first time, because the app is not notarised by Apple. Go to System Settings › Privacy & Security, scroll down, and click **Open Anyway** next to the DHCP Server message.
+
+You only need to do step 3 once.
+
+## Build from source
+
+You need the Xcode Command Line Tools (`xcode-select --install`).
 
 ```bash
 ./build.sh
@@ -34,7 +41,11 @@ This produces `build/DHCP Server.app`. Open it from Finder or with:
 open "build/DHCP Server.app"
 ```
 
-The app is ad-hoc signed, so it runs on the Mac that built it. Copied to another Mac, Gatekeeper will block it; build it there instead.
+To package it as a disk image for sharing:
+
+```bash
+./build.sh dmg
+```
 
 ## Usage
 
