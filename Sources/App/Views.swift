@@ -35,11 +35,11 @@ private struct StatusHeader: View {
                         .fixedSize(horizontal: false, vertical: true)
                 }
                 Spacer()
-                Button(model.isRunning ? "Stop" : "Start") { model.toggle() }
+                Button(model.isRunning ? "Stop" : model.isChecking ? "Checking…" : "Start") { model.toggle() }
                     .buttonStyle(.borderedProminent)
                     .controlSize(.large)
                     .tint(model.isRunning ? .red : .accentColor)
-                    .disabled(!model.isRunning && model.problem != nil)
+                    .disabled(!model.isRunning && (model.problem != nil || model.isChecking))
             }
             if let notice = model.notice {
                 HStack(alignment: .firstTextBaseline) {
@@ -62,6 +62,9 @@ private struct StatusHeader: View {
         }
         if let problem = model.problem {
             return problem
+        }
+        if model.isChecking {
+            return "Checking for other DHCP servers on this network…"
         }
         return "Ready to hand out \(model.poolRange ?? "")"
     }
@@ -87,10 +90,20 @@ private struct SetupView: View {
                     }
                 }
                 LabeledContent("This Mac's address", value: macAddressSummary)
+                HStack {
+                    Button(model.isChecking ? "Checking…" : "Check for Existing DHCP Servers") { model.checkForServers() }
+                        .disabled(model.isChecking || model.selectedInterface == nil)
+                    if let result = model.checkResult {
+                        Label(result.text, systemImage: result.conflict ? "exclamationmark.triangle.fill" : "checkmark.circle.fill")
+                            .foregroundStyle(result.conflict ? Color.orange : Color.green)
+                            .font(.callout)
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
+                }
             } header: {
                 Text("Network interface")
             } footer: {
-                Text("Devices connected to this interface receive their addresses from this Mac. Only run one DHCP server per network — turn off DHCP on your router first if it has one.")
+                Text("Devices connected to this interface receive their addresses from this Mac. Only run one DHCP server per network — turn off DHCP on your router first if it has one. Start checks for an existing server before it begins.")
             }
             .disabled(model.isRunning)
 
@@ -228,7 +241,7 @@ struct MenuContent: View {
         }
         Divider()
         Button(model.isRunning ? "Stop Server" : "Start Server") { model.toggle() }
-            .disabled(!model.isRunning && model.problem != nil)
+            .disabled(!model.isRunning && (model.problem != nil || model.isChecking))
         Button("Open DHCP Server…") {
             openWindow(id: "main")
             NSApp.activate(ignoringOtherApps: true)

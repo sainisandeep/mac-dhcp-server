@@ -114,7 +114,7 @@ public final class DHCPEngine {
         onEvent?(.log(message))
     }
 
-    private static func socketAddress(_ ip: IPv4, port: UInt16) -> sockaddr_in {
+    static func socketAddress(_ ip: IPv4, port: UInt16) -> sockaddr_in {
         var address = sockaddr_in()
         address.sin_len = UInt8(MemoryLayout<sockaddr_in>.size)
         address.sin_family = sa_family_t(AF_INET)

@@ -28,6 +28,9 @@ final class ServerModel: ObservableObject {
     @Published private(set) var log: [LogLine] = []
     @Published private(set) var launchAtLogin = SMAppService.mainApp.status == .enabled
     @Published private(set) var now = Date()
+    @Published private(set) var isChecking = false
+    /// Outcome of the last "check for existing servers", shown under the interface picker.
+    @Published private(set) var checkResult: (text: String, conflict: Bool)?
 
     private enum Keys {
         static let config = "config"
@@ -60,7 +63,7 @@ final class ServerModel: ObservableObject {
             Task { @MainActor in self?.tick() }
         }
         if startOnLaunch {
-            start()
+            startAfterCheck(interactive: false)
         }
     }
 
@@ -113,6 +116,7 @@ final class ServerModel: ObservableObject {
 
     func selectInterface(_ name: String) {
         config.interfaceName = name
+        checkResult = nil
         guard let interface = selectedInterface, let suggestion = ServerConfig.suggestedPool(for: interface) else { return }
         // Keep the user's pool if it already fits this network.
         if let start = IPv4(config.poolStart), let ip = interface.address, let mask = interface.netmask,
@@ -124,10 +128,78 @@ final class ServerModel: ObservableObject {
     }
 
     func toggle() {
-        isRunning ? stop() : start()
+        isRunning ? stop() : startAfterCheck(interactive: true)
     }
 
-    func start() {
+    /// Looks for DHCP servers already on the selected network and reports what it finds.
+    func checkForServers() {
+        guard !isRunning, !isChecking else { return }
+        Task {
+            switch await findServers() {
+            case .success(let servers) where servers.isEmpty:
+                checkResult = ("No other DHCP server answered on this network.", false)
+            case .success(let servers):
+                checkResult = ("Already handing out addresses here: \(Self.list(servers))", true)
+            case .failure(let error):
+                checkResult = ("Could not check: \(error.localizedDescription)", true)
+            }
+        }
+    }
+
+    /// Starts the server unless another one is already on the network. When `interactive`,
+    /// the user is asked whether to start anyway; otherwise the server stays stopped.
+    func startAfterCheck(interactive: Bool) {
+        guard !isRunning, !isChecking else { return }
+        if let problem {
+            notice = problem
+            return
+        }
+        Task {
+            switch await findServers() {
+            case .success(let servers) where !servers.isEmpty:
+                let found = Self.list(servers)
+                checkResult = ("Already handing out addresses here: \(found)", true)
+                append("Found another DHCP server on \(config.interfaceName): \(found)")
+                if interactive {
+                    guard confirmStart(despite: found) else { return }
+                } else {
+                    notice = "The server was not started because another DHCP server (\(found)) is already on this network."
+                    return
+                }
+            case .success:
+                checkResult = ("No other DHCP server answered on this network.", false)
+            case .failure(let error):
+                append("Could not check for other DHCP servers: \(error.localizedDescription)")
+            }
+            start()
+        }
+    }
+
+    private func findServers() async -> Result<[IPv4], Error> {
+        let name = config.interfaceName
+        isChecking = true
+        defer { isChecking = false }
+        return await Task.detached {
+            Result { try DHCPProbe.findServers(interfaceName: name) }
+        }.value
+    }
+
+    private func confirmStart(despite servers: String) -> Bool {
+        let alert = NSAlert()
+        alert.alertStyle = .warning
+        alert.messageText = "Another DHCP server is already on this network"
+        alert.informativeText = "\(servers) is already handing out addresses on \(selectedInterface?.displayName ?? config.interfaceName). Running a second server gives devices conflicting addresses and can knock them offline."
+        alert.addButton(withTitle: "Cancel")
+        alert.addButton(withTitle: "Start Anyway")
+        NSApp.activate(ignoringOtherApps: true)
+        return alert.runModal() == .alertSecondButtonReturn
+    }
+
+    private static func list(_ servers: [IPv4]) -> String {
+        servers.map(\.description).joined(separator: ", ")
+    }
+
+    private func start() {
         guard !isRunning else { return }
         refreshInterfaces()
         do {

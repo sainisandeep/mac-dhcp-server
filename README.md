@@ -15,6 +15,7 @@ It is meant for networks that have no DHCP server of their own: a lab bench, a s
 - Devices tab listing every lease, and an Activity tab logging each offer and assignment
 - Runs in the background from the menu bar, with optional open-at-login and auto-start
 - Leases are remembered across restarts
+- Checks for an existing DHCP server on the network, on demand and automatically before starting
 - No admin password needed
 
 ## Download
@@ -52,7 +53,7 @@ To package it as a disk image for sharing:
 1. **Give the Mac a manual IP address on the interface.** In System Settings › Network, set the interface to a manual address such as `192.168.10.1` with mask `255.255.255.0`. The app will not start on an interface that has no address or only a self-assigned `169.254.x.x` one.
 2. **Select the interface** in the Setup tab.
 3. **Adjust the pool** (first address, size, lease time). Fill in the router and DNS servers if the network has internet access; leave them blank otherwise.
-4. **Press Start.** The first time, macOS asks for Local Network permission. Allow it, or replies cannot be sent.
+4. **Press Start.** The app first spends about three seconds checking whether another DHCP server is already on the network, and asks before continuing if it finds one. The first time, macOS asks for Local Network permission. Allow it, or replies cannot be sent.
 5. **Close the window** to leave the server running. The menu bar icon starts and stops the server, reopens the window, and quits the app.
 
 ## Troubleshooting
